@@ -5,11 +5,16 @@
     {
         "command": "navigate_to_definition",
         "args": {},
-        "caption": "Navigate to Definition"
+        "caption": "CTags - Navigate to Definition"
+    },
+    {
+        "command": "navigate_to_declaration",
+        "args": {},
+        "caption": "CTags - Navigate to Declaration"
     },
     {
         "command": "jump_prev",
         "args": {},
-        "caption": "Jump Back"
+        "caption": "CTags - Jump Back"
     }
 ]

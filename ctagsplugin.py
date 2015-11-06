@@ -623,7 +623,64 @@ def compile_definition_filters(view):
             filters.append(regexes)
     return filters
 
+def compile_declaration_filters(view):
+    filters = []
+    for selector, regexes in list(setting('declaration_filters', {}).items()):
+        if view.match_selector(view.sel() and view.sel()[0].begin() or 0,
+                               selector):
+            filters.append(regexes)
+    return filters
+
 # Goto definition under cursor commands
+class JumpToDeclaration:
+    """
+    Provider for NavigateToDefinition and SearchForDefinition commands.
+    """
+    @staticmethod
+    def run(symbol, view, tags_file):
+        tags = {}
+        for tags_file in get_alternate_tags_paths(view, tags_file):
+            with TagFile(tags_file, SYMBOL) as tagfile:
+                tags = tagfile.get_tags_dict(
+                    symbol, filters=compile_filters(view))
+                print("tags")
+            if tags:
+                break
+
+        if not tags:
+            return status_message('Can\'t find "%s"' % symbol)
+
+        dec_filters = compile_declaration_filters(view)
+
+        
+        fname_abs = view.file_name() if not(view.file_name() is None) else None
+        
+        def pass_dec_filter(o):
+            for f in dec_filters:
+                for k, v in list(f.items()):
+                    if k in o:
+                        if re.match(v, o[k]):
+                            return False
+            return True
+
+        def eq_filename(rel_path):
+            if fname_abs is None or rel_path is None:
+                return False
+                
+            if rel_path.startswith("."):
+               rel_path = rel_path[1:]      
+            return fname_abs.endswith(rel_path)
+            
+        @prepare_for_quickpanel()
+        def sorted_tags():
+            p_tags = list(filter(pass_dec_filter, tags.get(symbol, [])))
+            if not p_tags:
+                status_message('Can\'t find "%s"' % symbol)
+            p_tags = sorted(p_tags, key=lambda tag: '' if eq_filename(tag.tag_path[0]) else tag.tag_path[0])
+            return p_tags
+
+        return sorted_tags
+
 
 class JumpToDefinition:
     """
@@ -636,6 +693,7 @@ class JumpToDefinition:
             with TagFile(tags_file, SYMBOL) as tagfile:
                 tags = tagfile.get_tags_dict(
                     symbol, filters=compile_filters(view))
+                print(tags)
             if tags:
                 break
 
@@ -704,6 +762,38 @@ class NavigateToDefinition(sublime_plugin.TextCommand):
         symbol = view.substr(region)
 
         return JumpToDefinition.run(symbol, view, tags_file)
+
+class NavigateToDeclaration(sublime_plugin.TextCommand):
+    """
+    Provider for the ``navigate_to_declaration`` command.
+
+    Command navigates to the definition for a symbol in the open file(s) or
+    folder(s).
+    """
+    is_enabled = check_if_building
+
+    def __init__(self, args):
+        sublime_plugin.TextCommand.__init__(self, args)
+        self.endings = re.compile(RUBY_SPECIAL_ENDINGS)
+
+    def is_visible(self):
+        return setting('show_context_menus')
+
+    @ctags_goto_command(jump_directly=True)
+    def run(self, view, args, tags_file):
+        region = view.sel()[0]
+        if region.begin() == region.end():  # point
+            region = view.word(region)
+
+            # handle special line endings for Ruby
+            language = view.settings().get('syntax')
+            endings = view.substr(sublime.Region(region.end(), region.end()+1))
+
+            if 'Ruby' in language and self.endings.match(endings):
+                region = sublime.Region(region.begin(), region.end()+1)
+        symbol = view.substr(region)
+
+        return JumpToDeclaration.run(symbol, view, tags_file)
 
 class SearchForDefinition(sublime_plugin.WindowCommand):
     """
@@ -918,6 +1008,7 @@ class GetAllCTagsList():
 
 class CTagsAutoComplete(sublime_plugin.EventListener):
     def on_query_completions(self, view, prefix, locations):
+        
         if setting('autocomplete'):
             prefix = prefix.strip().lower()
             tags_path = view.window().folders()[0] + '/' + setting('tag_file')
@@ -931,7 +1022,6 @@ class CTagsAutoComplete(sublime_plugin.EventListener):
                 results = [sublist for sublist in GetAllCTagsList.ctags_list
                            if sublist[0].lower().startswith(prefix)]
                 results = sorted(set(results).union(set(sub_results)))
-
                 return results
             else:
                 tags = []

@@ -55,7 +55,7 @@
     // example:
     //
     //     ["--exclude=some/path", "--exclude=some/other/path", ...]
-    "opts" : [],
+    "opts" : ["--c-kinds=+p"],
 
     // Tag "kind"s to ignore.
     //
@@ -80,7 +80,19 @@
     // placed here will be used when the plugin is searching for a definition
     // in the file.
     "definition_filters": {
-        "source.php": {"type":"^v$"}
+        "source.php": {"type":"^v$"},
+        "source.c++": {"type":"^p$"}
+    },
+
+    // Definition "kind"s to ignore.
+    //
+    // This is very similar to the 'filters' option. However, this only
+    // applies to the process that is used to find a definition. All filters
+    // placed here will be used when the plugin is searching for a definition
+    // in the file.
+    "declaration_filters": {
+        "source.php": {"type":"^v$"},
+        "source.c++": {"type":"^f$"}
     },
 
     // Enable the ctags menu in the context menus.
